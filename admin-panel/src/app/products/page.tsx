@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import AdminLayout from "@/components/layout/AdminLayout";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -174,6 +176,8 @@ const getErrorMessage = (error: unknown) => {
 };
 
 export default function ProductsPage() {
+  const searchParams = useSearchParams();
+  const editParam = searchParams.get("edit");
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [variants, setVariants] = useState<Variant[]>([]);
@@ -193,6 +197,7 @@ export default function ProductsPage() {
   const [priceBeforeMax, setPriceBeforeMax] = useState("");
   const [priceAfterMin, setPriceAfterMin] = useState("");
   const [priceAfterMax, setPriceAfterMax] = useState("");
+  const [pendingEditId, setPendingEditId] = useState<string | null>(null);
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -219,8 +224,28 @@ export default function ProductsPage() {
     () => [...products].sort((a, b) => a.id - b.id),
     [products]
   );
+  const outOfStockProducts = useMemo(
+    () =>
+      sortedProducts.filter((product) => {
+        const stockValue = toNumberValue(product.stock);
+        return stockValue !== null && stockValue <= 0;
+      }),
+    [sortedProducts]
+  );
 
-  const fetchProducts = async (page: number, initial = false) => {
+  const fetchProducts = async (
+    page: number,
+    initial = false,
+    overrides?: Partial<{
+      nameFilter: string;
+      categoryFilter: string;
+      productIdFilter: string;
+      priceBeforeMin: string;
+      priceBeforeMax: string;
+      priceAfterMin: string;
+      priceAfterMax: string;
+    }>
+  ) => {
     if (initial) {
       setIsLoading(true);
     } else {
@@ -232,26 +257,38 @@ export default function ProductsPage() {
       const safePage = Math.max(1, page);
       params.set("page", String(safePage));
       params.set("limit", String(limit));
-      if (nameFilter.trim()) {
-        params.set("name", nameFilter.trim());
+      const resolvedName = overrides?.nameFilter ?? nameFilter;
+      const resolvedCategory = overrides?.categoryFilter ?? categoryFilter;
+      const resolvedProductId = overrides?.productIdFilter ?? productIdFilter;
+      const resolvedPriceBeforeMin =
+        overrides?.priceBeforeMin ?? priceBeforeMin;
+      const resolvedPriceBeforeMax =
+        overrides?.priceBeforeMax ?? priceBeforeMax;
+      const resolvedPriceAfterMin =
+        overrides?.priceAfterMin ?? priceAfterMin;
+      const resolvedPriceAfterMax =
+        overrides?.priceAfterMax ?? priceAfterMax;
+
+      if (resolvedName.trim()) {
+        params.set("name", resolvedName.trim());
       }
-      if (categoryFilter) {
-        params.set("categoryId", categoryFilter);
+      if (resolvedCategory) {
+        params.set("categoryId", resolvedCategory);
       }
-      if (productIdFilter.trim()) {
-        params.set("productId", productIdFilter.trim());
+      if (resolvedProductId.trim()) {
+        params.set("productId", resolvedProductId.trim());
       }
-      if (priceBeforeMin.trim()) {
-        params.set("priceBeforeMin", priceBeforeMin.trim());
+      if (resolvedPriceBeforeMin.trim()) {
+        params.set("priceBeforeMin", resolvedPriceBeforeMin.trim());
       }
-      if (priceBeforeMax.trim()) {
-        params.set("priceBeforeMax", priceBeforeMax.trim());
+      if (resolvedPriceBeforeMax.trim()) {
+        params.set("priceBeforeMax", resolvedPriceBeforeMax.trim());
       }
-      if (priceAfterMin.trim()) {
-        params.set("priceAfterMin", priceAfterMin.trim());
+      if (resolvedPriceAfterMin.trim()) {
+        params.set("priceAfterMin", resolvedPriceAfterMin.trim());
       }
-      if (priceAfterMax.trim()) {
-        params.set("priceAfterMax", priceAfterMax.trim());
+      if (resolvedPriceAfterMax.trim()) {
+        params.set("priceAfterMax", resolvedPriceAfterMax.trim());
       }
       const query = params.toString();
       const response = await api.get<ApiListResponse<any>>(
@@ -313,10 +350,37 @@ export default function ProductsPage() {
   };
 
   useEffect(() => {
-    fetchProducts(1, true);
     fetchCategories();
     fetchVariants();
   }, []);
+
+  useEffect(() => {
+    if (editParam) {
+      setProductIdFilter(editParam);
+      setCurrentPage(1);
+      setPendingEditId(editParam);
+      fetchProducts(1, true, { productIdFilter: editParam });
+      return;
+    }
+    fetchProducts(1, true);
+  }, [editParam]);
+
+  useEffect(() => {
+    if (!pendingEditId || isLoading) {
+      return;
+    }
+    const match = products.find(
+      (product) => String(product.id) === String(pendingEditId)
+    );
+    if (match) {
+      openEditModal(match);
+      setPendingEditId(null);
+      return;
+    }
+    if (!isPageLoading) {
+      setPendingEditId(null);
+    }
+  }, [pendingEditId, products, isLoading, isPageLoading]);
 
   const resetForm = () => {
     setNameInput("");
@@ -606,6 +670,22 @@ export default function ProductsPage() {
   return (
     <AdminLayout>
       <div className="space-y-6">
+        {outOfStockProducts.length > 0 ? (
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+            You have an item that out of stock - take action about this product:
+            <span className="ml-2 flex flex-wrap gap-2">
+              {outOfStockProducts.map((product) => (
+                <Link
+                  key={product.id}
+                  href={`/admin/products/${product.id}`}
+                  className="text-amber-800 underline decoration-amber-400 hover:text-amber-900"
+                >
+                  {product.name ?? `Product #${product.id}`}
+                </Link>
+              ))}
+            </span>
+          </div>
+        ) : null}
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">Products</h1>
@@ -772,6 +852,7 @@ export default function ProductsPage() {
                     </th>
                     <th className="py-2 pr-4 font-medium">Stock</th>
                     <th className="py-2 pr-4 font-medium">Created At</th>
+                    <th className="py-2 pr-4 font-medium">View</th>
                     <th className="py-2 font-medium">Actions</th>
                   </tr>
                 </thead>
@@ -790,7 +871,14 @@ export default function ProductsPage() {
                           <span className="text-xs text-slate-400">No image</span>
                         )}
                       </td>
-                      <td className="py-3 pr-4">{product.name}</td>
+                      <td className="py-3 pr-4">
+                        <Link
+                          href={`/admin/products/${product.id}`}
+                          className="text-slate-900 hover:underline"
+                        >
+                          {product.name}
+                        </Link>
+                      </td>
                       <td className="py-3 pr-4">
                         {product.category?.name ??
                           categories.find(
@@ -860,6 +948,14 @@ export default function ProductsPage() {
                       </td>
                       <td className="py-3 pr-4">
                         {formatDate(product.createdAt)}
+                      </td>
+                      <td className="py-3 pr-4">
+                        <Link
+                          href={`/admin/products/${product.id}`}
+                          className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-100"
+                        >
+                          View
+                        </Link>
                       </td>
                       <td className="py-3">
                         <div className="flex flex-wrap gap-2">

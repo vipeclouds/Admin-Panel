@@ -6,10 +6,11 @@ import { usePathname } from "next/navigation";
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/categories", label: "Categories" },
-  { href: "/products", label: "Products" },
+  { href: "/admin/products", label: "Products" },
   { href: "/variants", label: "Variants" },
-  { href: "/orders", label: "Orders" },
-  { href: "/users", label: "Users" },
+  { href: "/admin/homepage-control", label: "HomePage Control" },
+  { href: "/admin/orders", label: "Orders" },
+  { href: "/admin/users", label: "Users" },
 ];
 
 export default function Sidebar() {

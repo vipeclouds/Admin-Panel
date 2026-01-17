@@ -33,10 +33,10 @@ const statsConfig = [
 ] as const;
 
 const formatCurrency = (value: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(value);
+  `${new Intl.NumberFormat("en-EG", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value)} EGP`;
 
 const formatDate = (value: string) => {
   const date = new Date(value);
@@ -62,6 +62,13 @@ const getStatusStyles = (status: string) => {
     return "bg-emerald-100 text-emerald-700";
   }
   return "bg-slate-100 text-slate-700";
+};
+
+const formatStatusLabel = (status: string) => {
+  if (status === "OUT_FOR_DELIVERY") {
+    return "OUT FOR DDELIVERY";
+  }
+  return status.replace(/_/g, " ");
 };
 
 const toNumber = (value: unknown) => {
@@ -306,7 +313,7 @@ export default function DashboardPage() {
                               order.status
                             )}`}
                           >
-                            {order.status}
+                            {formatStatusLabel(order.status)}
                           </span>
                         </td>
                         <td className="py-3">{formatDate(order.createdAt)}</td>
