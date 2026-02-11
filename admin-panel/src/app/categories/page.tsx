@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import AdminLayout from "@/components/layout/AdminLayout";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -338,7 +339,14 @@ export default function CategoriesPage() {
                           <span className="text-xs text-slate-400">No image</span>
                         )}
                       </td>
-                      <td className="py-3 pr-4">{category.name}</td>
+                      <td className="py-3 pr-4">
+                        <Link
+                          href={`/categories/${category.id}`}
+                          className="text-slate-900 hover:underline"
+                        >
+                          {category.name}
+                        </Link>
+                      </td>
                       <td className="py-3 pr-4">
                         {formatDate(category.createdAt)}
                       </td>

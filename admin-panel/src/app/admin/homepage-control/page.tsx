@@ -13,6 +13,7 @@ type HomepagePayload = {
   heroTextPrimary?: string | null;
   heroTextSecondary?: string | null;
   showNewCollection?: boolean | null;
+  logoUrl?: string | null;
 };
 
 type HeroStat = {
@@ -92,6 +93,24 @@ export default function HomepageControlPage() {
   const [showNewCollection, setShowNewCollection] = useState(false);
   const [heroTextPrimary, setHeroTextPrimary] = useState("");
   const [heroTextSecondary, setHeroTextSecondary] = useState("");
+  const [logoUrl, setLogoUrl] = useState("");
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState("");
+  const [logoLoading, setLogoLoading] = useState(true);
+  const [logoError, setLogoError] = useState("");
+  const [logoSuccess, setLogoSuccess] = useState("");
+  const [logoImageFailed, setLogoImageFailed] = useState(false);
+  const [isLogoSaving, setIsLogoSaving] = useState(false);
+  const [footerWebsiteName, setFooterWebsiteName] = useState("");
+  const [footerCopyright, setFooterCopyright] = useState("");
+  const [footerInitial, setFooterInitial] = useState<{
+    websiteName: string;
+    copyrightText: string;
+  } | null>(null);
+  const [footerLoading, setFooterLoading] = useState(true);
+  const [footerError, setFooterError] = useState("");
+  const [footerSuccess, setFooterSuccess] = useState("");
+  const [isFooterSaving, setIsFooterSaving] = useState(false);
 
   const [initialState, setInitialState] = useState<HomepagePayload | null>(null);
   const [heroStats, setHeroStats] = useState<HeroStat[]>([]);
@@ -149,6 +168,53 @@ export default function HomepageControlPage() {
     };
 
     loadHomepage();
+  }, []);
+
+  useEffect(() => {
+    const loadLogo = async () => {
+      setLogoLoading(true);
+      setLogoError("");
+      try {
+        const response = await api.get<ApiResponse<{ logoUrl?: string | null }>>(
+          "/homepage-control"
+        );
+        const nextLogo = response.data?.data?.logoUrl ?? "";
+        setLogoUrl(nextLogo);
+        setLogoFile(null);
+        setLogoPreviewUrl("");
+        setLogoImageFailed(false);
+      } catch (err) {
+        setLogoError(getErrorMessage(err));
+      } finally {
+        setLogoLoading(false);
+      }
+    };
+
+    loadLogo();
+  }, []);
+
+  useEffect(() => {
+    const loadFooterSettings = async () => {
+      setFooterLoading(true);
+      setFooterError("");
+      try {
+        const response = await api.get<
+          ApiResponse<{ websiteName?: string | null; copyrightText?: string | null }>
+        >("/footer-settings");
+        const data = response.data?.data ?? {};
+        const websiteName = data.websiteName ?? "";
+        const copyrightText = data.copyrightText ?? "";
+        setFooterWebsiteName(websiteName);
+        setFooterCopyright(copyrightText);
+        setFooterInitial({ websiteName, copyrightText });
+      } catch (err) {
+        setFooterError(getErrorMessage(err));
+      } finally {
+        setFooterLoading(false);
+      }
+    };
+
+    loadFooterSettings();
   }, []);
 
   useEffect(() => {
@@ -619,6 +685,73 @@ export default function HomepageControlPage() {
     setSuccess("");
   };
 
+  const handleLogoSave = async () => {
+    if (!logoFile) {
+      setLogoError("Please select a logo file to upload.");
+      setLogoSuccess("");
+      return;
+    }
+
+    setIsLogoSaving(true);
+    setLogoError("");
+    setLogoSuccess("");
+    try {
+      const formData = new FormData();
+      formData.append("logo", logoFile);
+      const response = await api.put<ApiResponse<{ logoUrl?: string | null }>>(
+        "/admin/homepage-control/logo",
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
+      const updatedLogo = response.data?.data?.logoUrl ?? logoUrl;
+      setLogoUrl(updatedLogo);
+      setLogoFile(null);
+      setLogoPreviewUrl("");
+      setLogoImageFailed(false);
+      setLogoSuccess("Logo updated successfully.");
+    } catch (err) {
+      setLogoError(getErrorMessage(err));
+    } finally {
+      setIsLogoSaving(false);
+    }
+  };
+
+  const handleFooterSave = async () => {
+    setIsFooterSaving(true);
+    setFooterError("");
+    setFooterSuccess("");
+    try {
+      await api.put("/admin/footer-settings", {
+        websiteName: footerWebsiteName.trim(),
+        copyrightText: footerCopyright.trim(),
+      });
+      setFooterInitial({
+        websiteName: footerWebsiteName.trim(),
+        copyrightText: footerCopyright.trim(),
+      });
+      setFooterSuccess("Footer settings updated.");
+    } catch (err) {
+      setFooterError(getErrorMessage(err));
+    } finally {
+      setIsFooterSaving(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!logoFile) {
+      if (logoPreviewUrl) {
+        URL.revokeObjectURL(logoPreviewUrl);
+      }
+      setLogoPreviewUrl("");
+      return;
+    }
+    const nextPreview = URL.createObjectURL(logoFile);
+    setLogoPreviewUrl(nextPreview);
+    return () => {
+      URL.revokeObjectURL(nextPreview);
+    };
+  }, [logoFile]);
+
   const handleSave = async () => {
     setIsSubmitting(true);
     setError("");
@@ -685,6 +818,155 @@ export default function HomepageControlPage() {
           <p className="text-sm text-slate-500">
             Manage the hero section content shown on the website.
           </p>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">
+                Logo Control
+              </h2>
+              <p className="text-sm text-slate-500">
+                Update the logo used across the storefront.
+              </p>
+            </div>
+          </div>
+
+          {logoLoading ? (
+            <div className="mt-4 space-y-3">
+              <div className="h-6 w-1/3 animate-pulse rounded bg-slate-200" />
+              <div className="h-28 w-full animate-pulse rounded bg-slate-200" />
+              <div className="h-10 w-full animate-pulse rounded bg-slate-200" />
+            </div>
+          ) : (
+            <div className="mt-4 space-y-4">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <img
+                  src={
+                    logoPreviewUrl ||
+                    (logoImageFailed
+                      ? "/next.svg"
+                      : logoUrl || "/next.svg")
+                  }
+                  alt="Logo preview"
+                  className="h-20 max-w-full rounded-md object-contain"
+                  onError={() => setLogoImageFailed(true)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">
+                  Upload Logo
+                </label>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
+                  onChange={(event) =>
+                    setLogoFile(event.target.files?.[0] ?? null)
+                  }
+                  className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 file:mr-3 file:rounded-md file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-slate-800"
+                />
+              </div>
+              {logoError ? (
+                <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                  {logoError}
+                </p>
+              ) : null}
+              {logoSuccess ? (
+                <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                  {logoSuccess}
+                </p>
+              ) : null}
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setLogoFile(null);
+                    setLogoPreviewUrl("");
+                    setLogoError("");
+                    setLogoSuccess("");
+                    setLogoImageFailed(false);
+                  }}
+                  disabled={isLogoSaving}
+                >
+                  Reset
+                </Button>
+                <Button onClick={handleLogoSave} disabled={isLogoSaving}>
+                  {isLogoSaving ? "Saving..." : "Save Logo"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">
+                Footer Settings
+              </h2>
+              <p className="text-sm text-slate-500">
+                Update website name and copyright text.
+              </p>
+            </div>
+          </div>
+
+          {footerLoading ? (
+            <div className="mt-4 space-y-3">
+              <div className="h-6 w-1/3 animate-pulse rounded bg-slate-200" />
+              <div className="h-10 w-full animate-pulse rounded bg-slate-200" />
+              <div className="h-10 w-full animate-pulse rounded bg-slate-200" />
+            </div>
+          ) : (
+            <div className="mt-4 space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">
+                  Website Name
+                </label>
+                <Input
+                  value={footerWebsiteName}
+                  onChange={(event) => setFooterWebsiteName(event.target.value)}
+                  placeholder="Enter website name"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">
+                  Copyright Text
+                </label>
+                <Input
+                  value={footerCopyright}
+                  onChange={(event) => setFooterCopyright(event.target.value)}
+                  placeholder="© 2026 by Your Name. All rights reserved."
+                />
+              </div>
+              {footerError ? (
+                <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                  {footerError}
+                </p>
+              ) : null}
+              {footerSuccess ? (
+                <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                  {footerSuccess}
+                </p>
+              ) : null}
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setFooterWebsiteName(footerInitial?.websiteName ?? "");
+                    setFooterCopyright(footerInitial?.copyrightText ?? "");
+                    setFooterError("");
+                    setFooterSuccess("");
+                  }}
+                  disabled={isFooterSaving}
+                >
+                  Reset
+                </Button>
+                <Button onClick={handleFooterSave} disabled={isFooterSaving}>
+                  {isFooterSaving ? "Saving..." : "Save Footer"}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
